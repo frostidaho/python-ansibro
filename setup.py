@@ -66,6 +66,7 @@ setup(
     ],
     install_requires=[
         'click',
+        'ansible',
     ],
     extras_require={
         # eg:
