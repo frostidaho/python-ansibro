@@ -1,0 +1,21 @@
+---
+- hosts: all
+  gather_facts: no
+  vars:
+    create_username: <@ username @>
+    create_hashed_password: <@ password | password_hash('sha512') @>
+
+# http://docs.ansible.com/ansible/playbooks_prompts.html
+  tasks:
+    - debug: msg="Received create_username={{ create_username }}, create_hashed_password={{ create_hashed_password }}"
+    # - name: Echo the current user
+    #   shell: echo $USER
+
+    - name: Create user "{{ create_username }}"
+      user: name="{{ create_username }}" comment="{{ create_username + 'User' }}" shell=/usr/bin/bash createhome=yes password="{{ create_hashed_password }}" update_password=on_create
+    - name: "Generate ssh-key for user {{ create_username }}"
+      user: name="{{ create_username }}" generate_ssh_key=yes
+    <@@ if is_admin @@>
+    - name: "Add user {{ create_username }} to groups"
+      user: name="{{ create_username }}" groups=uucp,wheel append=yes
+    <@@ endif @@>

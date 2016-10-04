@@ -1,0 +1,10 @@
+---
+- hosts: all
+  gather_facts: no
+  vars:
+    delete_username: <@ username @>
+
+  tasks:
+    - debug: var=delete_username
+    - name: "Deleting user {{ delete_username }}"
+      user: name="{{ delete_username }}" state=absent remove=yes

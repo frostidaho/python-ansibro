@@ -1,0 +1,17 @@
+---
+- hosts: all
+  gather_facts: no
+  vars:
+    alpha: <@ alpha @>
+
+  tasks:
+    - name: <@ pingtask @>
+      ping:
+    - debug: var=alpha
+    - debug: msg="{{ alpha }}"
+
+    - name: Echo the current user
+      shell: echo $USER
+      register: echo
+
+    - debug: var=echo['stdout']

@@ -23,17 +23,14 @@ def read(*names, **kwargs):
 
 
 setup(
-    name='ansibro',
+    name='isna',
     version='0.1.0',
     license='BSD',
     description='An ansible wrapper',
-    long_description='%s\n%s' % (
-        re.compile('^.. start-badges.*^.. end-badges', re.M | re.S).sub('', read('README.rst')),
-        re.sub(':[a-z]+:`~?(.*?)`', r'``\1``', read('CHANGELOG.rst'))
-    ),
+    long_description='An ansible wrapper',
     author='Idaho Frost',
     author_email='frostidaho@gmail.com',
-    url='https://github.com/frostidaho/python-ansibro',
+    url='https://github.com/frostidaho/python-isna',
     packages=find_packages('src'),
     package_dir={'': 'src'},
     py_modules=[splitext(basename(path))[0] for path in glob('src/*.py')],
@@ -65,8 +62,7 @@ setup(
         # eg: 'keyword1', 'keyword2', 'keyword3',
     ],
     install_requires=[
-        'click',
-        'ansible',
+        'jinja2',
     ],
     extras_require={
         # eg:
@@ -75,7 +71,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'ansibro = ansibro.cli:main',
+            'isna = isna.cli:main',
         ]
     },
 )

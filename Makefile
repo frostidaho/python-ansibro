@@ -48,16 +48,16 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr htmlcov/
 
 lint: ## check style with flake8
-	flake8 src/ansibro tests
+	flake8 src/isna tests
 
 test: ## run tests quickly with the default Python
 	py.test $(project_dir)/tests
-	
+	# py.test2 $(project_dir)/tests
 
 docs: ## generate Sphinx HTML documentation, including API docs
-	rm -f docs/ansibro.rst
+	rm -f docs/isna.rst
 	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ src/ansibro
+	sphinx-apidoc -o docs/ src/isna
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	$(BROWSER) docs/_build/html/index.html
@@ -72,15 +72,27 @@ dist: clean ## builds source and wheel package (requires python-wheel)
 	ls -l dist
 
 install: clean ## install the package to the active Python's site-packages
-	python setup.py install
+	python3 setup.py install
 
 install_user: ## install the package to the user's home directory
-	pip install --user $(project_dir)
+	pip3 install --user $(project_dir)
 
 install_develop: ## install the package to the user's home directory as symlinks
-	pip install --user -e $(project_dir)
+	pip3 install --user -e $(project_dir)
 
 uninstall: ## install the package
-	-pip uninstall ansibro
+	-pip3 uninstall isna
+
+install2: clean ## install the package to the active Python's site-packages
+	python2 setup.py install
+
+install2_user: ## install the package to the user's home directory
+	pip2 install --user $(project_dir)
+
+install2_develop: ## install the package to the user's home directory as symlinks
+	pip2 install --user -e $(project_dir)
+
+uninstall2: ## install the package
+	-pip2 uninstall isna
 
 

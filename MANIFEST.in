@@ -10,12 +10,6 @@ include .cookiecutterrc
 include .editorconfig
 include .isort.cfg
 
-include AUTHORS.rst
-include CHANGELOG.rst
-include CONTRIBUTING.rst
 include LICENSE
-include README.rst
-
-include tox.ini .travis.yml appveyor.yml
 
 global-exclude *.py[cod] __pycache__ *.so *.dylib
