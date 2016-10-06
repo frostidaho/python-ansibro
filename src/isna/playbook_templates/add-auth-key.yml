@@ -1,0 +1,14 @@
+---
+- hosts: all
+  gather_facts: no
+  vars:
+    src_key: <@ keypath_pub | expanduser | realpath @>
+    userauthkey: "{{ lookup('file', src_key) }}"
+    username: <@ username @>
+
+  tasks:
+    - debug: var=src_key
+    - debug: var=userauthkey
+    - debug: var=username
+    - name: Add authorized key to "{{ username }}"
+      authorized_key: user="{{ username }}" key="{{ userauthkey }}" state=present
