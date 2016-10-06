@@ -1,7 +1,3 @@
-import tempfile
-import sys as _sys
-
-
 from functools import partial as _partial
 from collections import (
     UserDict as _UserDict,
@@ -14,11 +10,11 @@ from jinja2 import meta as _meta
 from isna import util as _util
 from isna.config import cfg
 
+
 def _ansible_filters():
     from ansible.plugins.filter.core import FilterModule
     return FilterModule().filters()
 
-# DEFAULT_HOSTS = ('localhost',)
 
 JinjaEnv = _partial(
     jinja2.Environment,
@@ -31,34 +27,46 @@ JinjaEnv = _partial(
     undefined=jinja2.StrictUndefined,
 )
 
+
 def get_loader(*templ_dirs):
+    """Get a jinja loader which searches in templ_dirs
+
+    Each templ_dir can either be a
+        directory path as a string (e.g., '/path/to/templates')
+        or a list-like object of   (e.g, ['pymodule_name', 'template_folder'])
+    """
     loaders = []
     for td in templ_dirs:
         if isinstance(td, str):
             ldr = jinja2.FileSystemLoader(td, followlinks=True)
-        elif isinstance(td, _Iterable): # MUST come after check for str since
+        elif isinstance(td, _Iterable):  # MUST come after check for str since
             ldr = jinja2.PackageLoader(*td)
         else:
             raise TypeError('type {} is not supported'.format(type(td)))
         loaders.append(ldr)
     return jinja2.ChoiceLoader(loaders)
 
+
 def get_env(*templ_dirs):
     """Get a jinja environment with loaders from templ_dirs
 
-    Each templ_dir can either be a 
-        directory path as a string
-        or a list-like object of ['pymodule_name', 'template_folder']
+    Each templ_dir can either be a
+        directory path as a string     (e.g., '/path/to/templates')
+        or a list-like object of len 2 (e.g, ['pymodule_name', 'template_folder'])
     """
     return JinjaEnv(loader=get_loader(*templ_dirs))
-        
+
+
 def get_undefined(template):
+    "Given a jinja2 template object return the template's variables"
     env = template.environment
     template_str = env.loader.get_source(env, template.name)[0]
     parsed_content = env.parse(template_str)
     return _meta.find_undeclared_variables(parsed_content)
 
+
 class _UserDictRepr(_UserDict):
+
     def __repr__(self):
         reprdict = super().__repr__()
         cname = self.__class__.__name__
@@ -71,7 +79,9 @@ class _UserDictRepr(_UserDict):
         )
         return main
 
+
 class PBMaker(_UserDictRepr):
+
     def __init__(self, *templ_dirs, host_list=cfg['default_hosts'], **kwargs):
         super().__init__(kwargs)
         self.templ_dirs = templ_dirs
@@ -93,7 +103,7 @@ class PBMaker(_UserDictRepr):
             return templ
         try:
             templ = self.environment.get_template(name)
-        except jinja2.exceptions.TemplateAssertionError: # Load ansible filters
+        except jinja2.exceptions.TemplateAssertionError:  # Load ansible filters
             self.environment.filters.update(_ansible_filters())
             templ = self.environment.get_template(name)
         self._templates[name] = templ
@@ -113,7 +123,6 @@ class PBMaker(_UserDictRepr):
         cm = _ChainMap(kwargs, self.data)
         defined_vars = set(cm.keys())
         return all_vars - defined_vars
-        
 
     def render(self, name, **kwargs):
         """Render the template with additional kwargs. Return as str.
@@ -122,59 +131,58 @@ class PBMaker(_UserDictRepr):
         but their value won't be stored.
         """
         cm = _ChainMap(kwargs, self.data)
-        cm = {k:_util.maybe_bool(v) for k,v in cm.items()}
+        cm = {k: _util.maybe_bool(v) for k, v in cm.items()}
         templ = self.get_template(name)
         return templ.render(**cm)
 
 
-def _tempfile(towrite, mode='w+t', suffix=None, prefix='isna'):
-    tf = tempfile.NamedTemporaryFile(mode='w+t', prefix=prefix, suffix=suffix)
-    tf.write(towrite)
-    tf.seek(0)
-    return tf
+class AnsiblePlaybook:
+    """AnsiblePlaybook is context manager for running playbooks
 
+    For example:
+        with AnsiblePlaybook(...) as pb:
+            output = pb.run()
+    """
+    def __init__(self, playbook_str, host_list, **extra_vars):
+        import tempfile
+        import json
+        import subprocess
 
-def ansible_playbook(playbook_str, host_list, **extra_vars):
-    import json
-    import subprocess as sp
-    temp_pb = _tempfile(playbook_str, suffix='.yml')
-    temp_extra_vars = _tempfile(json.dumps(extra_vars), suffix='.json')
+        self._tempfile = tempfile
+        self._json = json
+        self._subprocess = subprocess
 
-    cmd = ['ansible-playbook', temp_pb.name,]
-    inv = ['-i', ','.join(host_list) + ',',]
-    extra = ['-e', '@' + temp_extra_vars.name,]
-    cmd = cmd + inv + extra
-    out = sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE, stdin=sp.DEVNULL)
-    # out = run(cmd)
-    temp_pb.close()
-    temp_extra_vars.close()
-    return out
+        self.playbook_str = playbook_str
+        self.host_list = host_list
+        self.extra_vars = {}
+        self.extra_vars.update(cfg['common_ansi_vars'])
+        self.extra_vars.update(extra_vars)
 
-    
-if __name__ == '__main__':
-    def subproc_status(out):
-        if out.stdout:
-            print(20*'@', 'stdout', 20*'@')
-            print(out.stdout.decode(), end='')
-        if out.stderr:
-            print(20*'@', 'stderr', 20*'@')
-            print(out.stderr.decode(), end='')
-        print(20*'@', 'end', 20*'@')
-        return out
+    def get_tempfile(self, towrite, mode='w+t', suffix=None, prefix='isna'):
+        ntf = self._tempfile.NamedTemporaryFile
+        tf = ntf(mode='w+t', prefix=prefix, suffix=suffix)
+        tf.write(towrite)
+        tf.seek(0)
+        return tf
 
-    pbm = PBMaker(('isna', 'playbook_templates'), '/home/ida/htmp/', host_list=['localhost'])
-    pbm.update({
-        'pingtask': 'ping task string',
-        'alpha': 'PBM ALPHA VAL'
-    })
-    out = ansible_playbook(
-        pbm.render('ping.yml'),
-        ['localhost'],
-        ansible_connection='local',
-        ansible_become='yes',
-        ansible_become_user='root',
-    )
-    subproc_status(out)
-    # print(out)
-    print(pbm.render('t1.txt', alpha=1, beta=2, gamma=3))
-    
+    def __enter__(self):
+        self.temp_playbook = self.get_tempfile(self.playbook_str, suffix='.yml')
+        self.temp_extra_vars = self.get_tempfile(
+            self._json.dumps(self.extra_vars),
+            suffix='.json',
+        )
+        return self
+
+    def __exit__(self, *args):
+        self.temp_playbook.close()
+        self.temp_extra_vars.close()
+
+    def run(self):
+        sp = self._subprocess
+        cmd = ['ansible-playbook', self.temp_playbook.name]
+        inv = ['-i', ','.join(self.host_list) + ',']
+        extra = ['-e', '@' + self.temp_extra_vars.name]
+        cmd = cmd + inv + extra
+        # return sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE, stdin=sp.DEVNULL)
+        return sp.run(cmd, stdin=sp.DEVNULL)
+

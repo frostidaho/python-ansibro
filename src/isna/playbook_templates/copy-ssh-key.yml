@@ -1,0 +1,27 @@
+---
+- hosts: all
+  vars:
+    username: <@ username @>
+    ssh_dir: <@ '/home/' + username + '/.ssh/' @>
+    src_key: <@ keypath | expanduser | realpath @>
+    src_key_name: "{{ src_key | basename }}"
+    src_key_pub: "{{ src_key + '.pub' }}"
+    ssh_key: "{{ ssh_dir + src_key_name }}"
+    ssh_key_pub: "{{ ssh_key + '.pub' }}"
+
+  tasks:
+    - debug: var=username
+    - debug: var=ssh_dir
+    - debug: var=src_key
+    - debug: var=src_key_pub
+
+    - name: Getting default group for "{{ username }}"
+      command: id -g -n <@ username @>
+      register: group
+
+    - name: Copying ssh key from "{{ src_key }}" to "{{ ansible_hostname + ':' + ssh_key }}"
+      copy: group="{{ group.stdout }}" owner="{{ username }}" src="{{ src_key }}" dest="{{ ssh_key }}" mode=0400 backup=yes
+
+    - name: Copying ssh key from "{{ src_key_pub }}" to "{{ ansible_hostname + ':' + ssh_key_pub }}"
+      copy: group="{{ group.stdout }}" owner="{{ username }}" src="{{ src_key_pub }}" dest="{{ ssh_key_pub }}" mode=0440 backup=yes
+

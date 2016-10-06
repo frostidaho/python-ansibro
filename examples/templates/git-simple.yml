@@ -1,0 +1,18 @@
+---
+- hosts: all
+  vars:
+    username: <@ username @>
+
+  tasks:
+    - name: Getting user\'s default group
+      command: id -g -n <@ username @>
+      register: group
+
+    - debug: var=group.stdout
+
+    - name: Getting ansible examples
+      git: repo=https://github.com/ansible/ansible-examples.git dest=/home/{{ username }}/ex_ansible
+
+    - name: Changing owner for ansible examples
+      file: group={{ group.stdout }} owner={{ username }} recurse=yes path=/home/{{ username }}/ex_ansible
+

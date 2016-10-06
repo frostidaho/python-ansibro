@@ -52,7 +52,6 @@ lint: ## check style with flake8
 
 test: ## run tests quickly with the default Python
 	py.test $(project_dir)/tests
-	# py.test2 $(project_dir)/tests
 
 docs: ## generate Sphinx HTML documentation, including API docs
 	rm -f docs/isna.rst
@@ -74,25 +73,13 @@ dist: clean ## builds source and wheel package (requires python-wheel)
 install: clean ## install the package to the active Python's site-packages
 	python3 setup.py install
 
-install_user: ## install the package to the user's home directory
+install_user: clean ## install the package to the user's home directory
 	pip3 install --user $(project_dir)
 
-install_develop: ## install the package to the user's home directory as symlinks
+install_develop: clean ## install the package to the user's home directory as symlinks
 	pip3 install --user -e $(project_dir)
 
-uninstall: ## install the package
+uninstall: ## uninstall the package
 	-pip3 uninstall isna
-
-install2: clean ## install the package to the active Python's site-packages
-	python2 setup.py install
-
-install2_user: ## install the package to the user's home directory
-	pip2 install --user $(project_dir)
-
-install2_develop: ## install the package to the user's home directory as symlinks
-	pip2 install --user -e $(project_dir)
-
-uninstall2: ## install the package
-	-pip2 uninstall isna
 
 

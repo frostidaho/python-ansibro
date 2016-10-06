@@ -3,26 +3,22 @@ import os
 import sys
 from collections import namedtuple, OrderedDict
 
+from isna.config import cfg
+from isna.query import InputQuery
 
 UserAction = namedtuple('UserAction', 'name action ask_pass')
-cfg = dict(
-    user_cmd_choices = ('sudo', 'ssh', 'su'),
-    user_default = UserAction('root', 'sudo', 'no'),
-    templ_dirs = (('isna', 'playbook_templates'),),
-    templ_ext = ('yml', 'txt'),
-)
+USER_CMD_CHOICES = ('sudo', 'ssh', 'su')
+USER_DEFAULT = UserAction('root', 'sudo', 'no')
 
 
 class GetArgParser:
-    ask_choices = ('yes', 'y', 'no', 'n')
-    ask_true = ('yes', 'y')
-    ask_false = ('no', 'n')
+    ask_choices = cfg['true_strs'] + cfg['false_strs']
+    ask_true = cfg['true_strs']
+    ask_false = cfg['false_strs']
 
     def __init__(self):
-
         self.parser = argparse.ArgumentParser(
             description='Ansible-playbook wrapper',
-            # formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         )
 
     @staticmethod
@@ -33,7 +29,8 @@ class GetArgParser:
             return os.path.abspath(path)
 
     @classmethod
-    def _usertype(cls, parser, user, default=cfg['user_default'], choices=cfg['user_cmd_choices']):
+    def _usertype(cls, parser, user, default=USER_DEFAULT,
+                  choices=USER_CMD_CHOICES):
         # print('_usertype() got', user)
         args = [x.strip() for x in user.split(',')]
         args = [x for x in args if x]
@@ -41,7 +38,7 @@ class GetArgParser:
             msg = 'Only a max of {} values can be given with -u: {}'
             parser.error(msg.format(len(default), args))
         vals = list(default)
-        for i,arg in enumerate(args):
+        for i, arg in enumerate(args):
             vals[i] = arg
         if vals[1] not in choices:
             parser.error('2nd arg to user must be one of {}'.format(choices))
@@ -66,6 +63,11 @@ class GetArgParser:
             '-lt', '--list-templates',
             action='store_true',
             help='List available templates',
+        )
+        listgrp.add_argument(
+            '-lv', '--list-vars',
+            action='store_true',
+            help='List vars in playbook template',
         )
         return listgrp
 
@@ -100,12 +102,13 @@ class GetArgParser:
             nargs='?',
             default='',
             type=str,
+            help=("A playbook template's filename if it is in any of the templates directories. "
+                  "Alternatively, it can be a relative or absolute path of a template.")
         )
-
 
     def add_user_option(self):
         parser = self.parser
-        dflt_ucmd = ','.join(cfg['user_default'])
+        dflt_ucmd = ','.join(USER_DEFAULT)
         uvars = UserAction._fields
         umeta = '[,'.join(uvars) + ((len(uvars) - 1) * ']')
         umeta = umeta.upper()
@@ -116,34 +119,24 @@ class GetArgParser:
                 "If given with no args it defaults to '{}'.  "
                 'Choices for actions are {}.  '
                 'Choices for ask_pass are {}'
-            ).format(dflt_ucmd, cfg['user_cmd_choices'], self.ask_choices),
-            type=lambda x: self._usertype(parser, x, default=cfg['user_default']),
+            ).format(dflt_ucmd, USER_CMD_CHOICES, self.ask_choices),
+            type=lambda x: self._usertype(parser, x, default=USER_DEFAULT),
             const=dflt_ucmd,
             metavar=umeta,
             nargs='?',
             action='append',
         )
-        
 
-def main(args=None):
+
+def parse_args(args=None):
     gap = GetArgParser()
     gap.add_list_args()
     gap.add_user_option()
     gap.add_options()
     gap.add_arguments()
-
     args = gap.parser.parse_args(args=args)
-    # print('main(): args=', args)
-    dargs = vars(args)
-    if args.list_hosts:
-        return list_hosts(**dargs)
-    elif args.list_templates:
-        return list_templates(**dargs)
-    res = run(**dargs)
-    if res != 0:
-        gap.parser.print_help()
-    return res
-    
+    return args, gap.parser.print_help
+
 
 def get_templ_dirs(templ_dirs, default=cfg['templ_dirs']):
     total = []
@@ -152,65 +145,71 @@ def get_templ_dirs(templ_dirs, default=cfg['templ_dirs']):
     total.extend(default)
     return total
 
-def _query(var, allow_empty=False, password_types=('password', 'pass')):
-    from getpass import getpass
+
+def main(args=None):
+    "main() is the entry point for the isna script"
+    args, print_help = parse_args(args)
+
+    dargs = vars(args)
+    templ_name = dargs['playbook_template']
+    templ_dirs = dargs['templates']
+    if templ_dirs is None:
+        templ_dirs = []
+    if os.path.isfile(templ_name):
+        _templ_path = os.path.realpath(templ_name)
+        templ_dirs.append(os.path.dirname(_templ_path))
+        templ_name = os.path.basename(_templ_path)
+    dargs['playbook_template'] = templ_name
+    dargs['templates'] = get_templ_dirs(templ_dirs)
+
+    if args.list_hosts:
+        return list_hosts(**dargs)
+    elif args.list_templates:
+        return list_templates(**dargs)
+    elif args.list_vars:
+        return list_template_vars(**dargs)
+
+    res = run(**dargs)
+    if res != 0:
+        print_help()
+    return res
+
+inpq = InputQuery()
+def _query(var, password_types=cfg['pass_substrs']):
+    # iq = InputQuery()
     if any((x for x in password_types if x in var)):
-        val = getpass(prompt=var)
-        # val = getpass(prompt='Enter secret value for {}: '.format(var))
+        qres = inpq(var, hide=True, repeat=True)
     else:
-        val = input(var)
-        # val = input('Enter value for {}: '.format(var))
-    if val or allow_empty:
-        return val
-    else:
-        return _query(var)
+        qres = inpq(var)
+    return qres.result
 
 def query(*variables):
     od = OrderedDict()
     for var in variables:
-        od[var] = _query('Enter value for {}: '.format(var))
+        od[var] = _query(var)
     return od
 
-# def args_to_ansible(extra_args, user, ask_pass, become_user,
-#                     ask_become_pass, **kwargs):
-#     ansid = {}
-#     for k, v in extra_args:
-#         ansid[k] = v
-#     if user:
-#         ansid['ansible_ssh_user'] = user
-#     if ask_pass:
-#         val = click.prompt('Enter ssh connectoin password', hide_input=True)
-#         ansid['ansible_ssh_pass'] = val
-#     if become_user:
-#         # http://docs.ansible.com/ansible/become.html
-#         ansid['ansible_become_user'] = become_user
-#         ansid['ansible_become'] = True
-#         ansid['ansible_become_method'] = 'sudo'
-#     if ask_become_pass:
-#         val = click.prompt('Enter su/sudo password', hide_input=True)
-#         ansid['ansible_become_pass'] = val
-#     return ansid
 
 def _user_to_ansible(usr):
-    pw_msg = 'Enter password for {}-{}: '
+    pw_msg = '{}_{}_pass'
     d = {}
     if usr.action in ('sudo', 'su'):
         d['ansible_become'] = True
         d['ansible_become_method'] = usr.action
         d['ansible_become_user'] = usr.name
         if usr.ask_pass:
-            # msg = 'password for {}:{}'.format(usr.name, usr.action)
+            # TODO: Make query() here such that if 'user_action_pass' is not given
+            # that instead of raising an exception it goes on to try ansible_become_pass
+            # or ansible_ssh_pass depending
             d['ansible_become_pass'] = _query(pw_msg.format(usr.name, usr.action))
     elif usr.action == 'ssh':
         d['ansible_ssh_user'] = usr.name
         if usr.ask_pass:
-            # msg = 'password for {}:{}'.format(usr.name, usr.action)
             d['ansible_ssh_pass'] = _query(pw_msg.format(usr.name, usr.action))
-            pass
-        pass
     else:
         raise ValueError('User action "{}" is not supported.'.format(usr.action))
     return d
+
 
 def user_to_ansible(user_args):
     if user_args is None:
@@ -220,19 +219,17 @@ def user_to_ansible(user_args):
         udict.update(_user_to_ansible(uaction))
     return udict
 
+
 def run(host, **kwargs):
-    from isna.playbook import PBMaker, ansible_playbook
-    templ_name = kwargs['playbook_template']
-    if not templ_name:
+    from isna.playbook import PBMaker, AnsiblePlaybook
+
+    if not kwargs['playbook_template']:
         print('You need to enter a template to run.', file=sys.stderr)
         return 1
 
     def render():
-        templ_dirs = get_templ_dirs(kwargs['templates'])
-        pbm = PBMaker(*templ_dirs, host_list=[host])
+        pbm = PBMaker(*kwargs['templates'], host_list=[host])
         templ_name = kwargs['playbook_template']
-
-        # print('extra_vars =', extra_vars)
         pbm.update(extra_vars)
         undef = pbm.undef_vars(templ_name)
         queried_vars = query(*sorted(undef))
@@ -245,33 +242,42 @@ def run(host, **kwargs):
     extra_vars.update(user_to_ansible(kwargs['user']))
     print(pb_text)
 
-    out = ansible_playbook(
-        pb_text,
-        [host],
-        **extra_vars,
-    )
-    print(out.stdout.decode())
-    print(out.stderr.decode())
+    with AnsiblePlaybook(pb_text, [host], **extra_vars) as pb:
+        out = pb.run()
+    if out.stdout:
+        print(out.stdout.decode())
+    if out.stderr:
+        print(out.stderr.decode())
+    return out.returncode
 
-    # print(pbm.undef_vars(templ_name, alpha=32))
-    return 0
 
 def list_hosts(**kwargs):
-    from isna.get_hosts import get_hosts
+    from isna.util import get_hosts
     hosts = ['localhost']
     hosts.extend(get_hosts())
     print('\n'.join(x for x in hosts if x))
     return 0
 
+
 def list_templates(**kwargs):
     from isna.playbook import PBMaker
-    templ_dirs = get_templ_dirs(kwargs['templates'])
-    # print('list_templates', kwargs['templates'])
-    # print(templ_dirs)
-    pbm = PBMaker(*templ_dirs)
+    pbm = PBMaker(*kwargs['templates'])
     all_templates = pbm.list_templates(cfg['templ_ext'])
     print('\n'.join(all_templates))
     return 0
 
-# x = query('a', 'b', 'c_password')
-# print(x)
+
+def list_template_vars(**kwargs):
+    from isna.playbook import PBMaker
+    pbm = PBMaker(*kwargs['templates'])
+    tname = kwargs['playbook_template']
+    if not tname:
+        print('Must give a playbook template for --list-vars', file=sys.stderr)
+        return 1
+    all_vars = sorted(pbm.all_vars(tname))
+    if all_vars:
+        print('\n'.join(all_vars))
+    else:
+        print("Template '{}' has no variables".format(tname), file=sys.stderr)
+    return 0
+

@@ -1,17 +1,17 @@
 ---
 - hosts: all
-  gather_facts: no
-  vars:
-    alpha: <@ alpha @>
 
   tasks:
-    - name: <@ pingtask @>
+    - name: Pinging "{{ ansible_hostname }}"
       ping:
-    - debug: var=alpha
-    - debug: msg="{{ alpha }}"
 
-    - name: Echo the current user
+    - name: Get the current user
       shell: echo $USER
-      register: echo
+      register: myuser
 
-    - debug: var=echo['stdout']
+    - name: Print user
+      debug: msg="{{ 'Shell gives user as ' + myuser['stdout'] }}"
+
+    - name: Print ansible variables
+      debug: var="[ansible_user_id, ansible_hostname, ansible_lsb]"
+
