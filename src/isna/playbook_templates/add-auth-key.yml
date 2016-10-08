@@ -2,8 +2,7 @@
 - hosts: all
   gather_facts: no
   vars:
-    src_key: <@ keypath_pub | expanduser | realpath @>
-    userauthkey: "{{ lookup('file', src_key) }}"
+    userauthkey: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
     username: <@ username @>
 
   tasks:
