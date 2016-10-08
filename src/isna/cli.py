@@ -6,9 +6,9 @@ from collections import namedtuple, OrderedDict
 from isna.config import cfg
 from isna.query import InputQuery
 
-UserAction = namedtuple('UserAction', 'name action ask_pass')
+UserAction = namedtuple('UserAction', 'action name ask_pass')
 USER_CMD_CHOICES = ('sudo', 'ssh', 'su')
-USER_DEFAULT = UserAction('root', 'sudo', 'no')
+USER_DEFAULT = UserAction('sudo', 'root', 'no')
 
 
 class GetArgParser:
@@ -40,17 +40,20 @@ class GetArgParser:
         vals = list(default)
         for i, arg in enumerate(args):
             vals[i] = arg
-        if vals[1] not in choices:
-            parser.error('2nd arg to user must be one of {}'.format(choices))
-        vals[2] = vals[2].lower()
-        if vals[2] not in cls.ask_choices:
-            parser.error('3rd arg to user must be one of {}'.format(choices))
-        if vals[2] in cls.ask_true:
-            vals[2] = True
+        vals = UserAction(*vals)
+        dvals = {}
+        if vals.action not in choices:
+            parser.error('Action "{}" must be in "{}"'.format(vals.action, choices))
         else:
-            vals[2] = False
-        # print('_usertype() returning', vals)
-        return UserAction(*vals)
+            dvals['action'] = vals.action
+
+        ask_pass = vals.ask_pass.lower()
+        if ask_pass not in cls.ask_choices:
+            parser.error('Ask_pass "{}" must be in "{}"'.format(vals.ask_pass, cls.ask_choices))
+        else:
+            dvals['ask_pass'] = True if ask_pass in cls.ask_true else False
+        dvals['name'] = vals.name
+        return UserAction(**dvals)
 
     def add_list_args(self):
         listgrp = self.parser.add_mutually_exclusive_group(required=False)
