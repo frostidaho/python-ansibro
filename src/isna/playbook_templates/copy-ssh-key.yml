@@ -19,9 +19,12 @@
       command: id -g -n <@ username @>
       register: group
 
+    - name: Create ssh dir
+      file: path="{{ ssh_dir }}" state=directory owner="{{ username }}" group="{{ group.stdout }}" mode=0700 recurse=no
+
     - name: Copying ssh key from "{{ src_key }}" to "{{ ansible_hostname + ':' + ssh_key }}"
-      copy: group="{{ group.stdout }}" owner="{{ username }}" src="{{ src_key }}" dest="{{ ssh_key }}" mode=0400 backup=yes
+      copy: group="{{ group.stdout }}" owner="{{ username }}" src="{{ src_key }}" dest="{{ ssh_key }}" mode=0600 backup=yes
 
     - name: Copying ssh key from "{{ src_key_pub }}" to "{{ ansible_hostname + ':' + ssh_key_pub }}"
-      copy: group="{{ group.stdout }}" owner="{{ username }}" src="{{ src_key_pub }}" dest="{{ ssh_key_pub }}" mode=0440 backup=yes
+      copy: group="{{ group.stdout }}" owner="{{ username }}" src="{{ src_key_pub }}" dest="{{ ssh_key_pub }}" mode=0660 backup=yes
 
