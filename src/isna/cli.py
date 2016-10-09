@@ -204,11 +204,11 @@ def _user_to_ansible(usr):
             # TODO: Make query() here such that if 'user_action_pass' is not given
             # that instead of raising an exception it goes on to try ansible_become_pass
             # or ansible_ssh_pass depending
-            d['ansible_become_pass'] = _query(pw_msg.format(usr.name, usr.action))
+            d['ansible_become_pass'] = _query(pw_msg.format(usr.action, usr.name))
     elif usr.action == 'ssh':
         d['ansible_ssh_user'] = usr.name
         if usr.ask_pass:
-            d['ansible_ssh_pass'] = _query(pw_msg.format(usr.name, usr.action))
+            d['ansible_ssh_pass'] = _query(pw_msg.format(usr.action, usr.name))
     else:
         raise ValueError('User action "{}" is not supported.'.format(usr.action))
     return d

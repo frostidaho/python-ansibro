@@ -3,14 +3,14 @@
   gather_facts: no
   vars:
     create_username: <@ username @>
-    create_hashed_password: <@ password | password_hash('sha512') @>
+    create_hashed_password: <@ new_usr_password | password_hash('sha512') @>
 
 # http://docs.ansible.com/ansible/playbooks_prompts.html
   tasks:
     - debug: msg="Received create_username={{ create_username }}, create_hashed_password={{ create_hashed_password }}"
 
     - name: Finding the path of bash in /etc/shells (The dflt shell needs to be listed in /etc/shells)
-      shell: cat /etc/shells | grep bash || echo '/bin/bash'
+      shell: cat /etc/shells | grep bash | head -n1 || echo '/bin/bash'
       register: bash
 
     - name: Create user "{{ create_username }}"
