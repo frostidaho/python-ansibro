@@ -60,6 +60,7 @@ setup(
     ],
     install_requires=[
         'jinja2',
+        'ansible',
     ],
     extras_require={
         # eg:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys as _sys
+import json
 from functools import partial as _partial
 from collections import namedtuple as _namedtuple
 
@@ -38,12 +39,27 @@ class InputQuery:
         print_file is a file-like object where user-input prompts
         are written.
         """
+        self.data = {}
         self.print_file = print_file
         self.is_tty = self.input_file.isatty()
         if self.is_tty:
             self._query = self._user_query
         else:
-            self._query = self._stdin_read
+            self._json_init()
+            self._query = self._json_query
+
+    def _json_init(self):
+        try:
+            jdat = self._json_dat
+        except AttributeError:
+            
+            try:
+                jdat = json.load(self.input_file)
+            except json.decoder.JSONDecodeError as e:
+                raise self.InputError('Could not decode json from stdin', var) from e
+            self._json_dat = jdat
+            self.data.update(jdat)
+
 
     def _build_prompt(self, var, default=None, prompt=None, choices=None, **kw):
         """_build_prompt creates a prompt-string for querying the user.
@@ -88,18 +104,23 @@ class InputQuery:
     def __call__(self, var, default=None, choices=None, prompt=None,
                  hide=False, repeat=False, transform=_identity, **kwargs):
         """Query stdin for var"""
+        # print('calling', var)
         query = _partial(self._query, var, default=default, choices=choices,
                          prompt=prompt, hide=hide, repeat=repeat, **kwargs)
         valid, res, raw_res = self._get_value(query, transform, choices)
         if valid:
-            return QueryRes(var, res, raw_res)
-        if not self.is_tty:
+            total_res = QueryRes(var, res, raw_res)
+            # return QueryRes(var, res, raw_res)
+        elif not self.is_tty:
             raise ValueError('{} is not in {}'.format(res, choices))
         else:
             while not valid:
                 self.qprint('{} is not in {}'.format(res, choices))
                 valid, res, raw_res = self._get_value(query, transform, choices)
-        return QueryRes(var, res, raw_res)
+            total_res = QueryRes(var, res, raw_res)
+        # print('got', QueryRes(var, res, raw_res))
+        self.data[total_res.var] = total_res.result
+        return total_res
 
     def qprint(self, *args, sep=' ', end='\n'):
         "qprint is a wrapper for print, which writes to self.print_file"
@@ -122,6 +143,7 @@ class InputQuery:
         return res
 
     def _user_query(self, var, *, allow_empty=False, **kw):
+        "Get var by querying user at the tty"
         kw['prompt'] = self._build_prompt(var, **kw)
         try:
             val = self._input(**kw)
@@ -134,17 +156,8 @@ class InputQuery:
                 return kw['default']
             return self._user_query(var, allow_empty=allow_empty, **kw)
 
-    def _stdin_read(self, var, **kw):
+    def _json_query(self, var, **kw):
         "Get var from a json object read from stdin"
-        try:
-            jdat = self._json_dat
-        except AttributeError:
-            import json
-            try:
-                jdat = json.load(self.input_file)
-            except json.decoder.JSONDecodeError as e:
-                raise self.InputError('Could not decode json from stdin', var) from e
-            self._json_dat = jdat
         if kw['default'] is not None:
             val = jdat.get(var, kw['default'])
         else:

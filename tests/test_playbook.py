@@ -47,7 +47,6 @@ class TestPBMaker(unittest.TestCase):
         host_list = ['aaa', 'bbb']
         pbm = pb.PBMaker(self.data_dir, host_list=host_list)
         self.assertIsInstance(pbm.environment, jinja2.Environment)
-        self.assertEqual(host_list, pbm.host_list)
 
     def test_list_templates(self):
         pbm = pb.PBMaker(self.data_dir)

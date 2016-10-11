@@ -1,9 +1,9 @@
 from functools import partial as _partial
 from collections import (
-    UserDict as _UserDict,
     ChainMap as _ChainMap,
     Iterable as _Iterable,
     defaultdict as _defaultdict,
+    UserDict as _UserDict,
 )
 import jinja2
 from jinja2 import meta as _meta
@@ -64,28 +64,41 @@ def get_undefined(template):
     parsed_content = env.parse(template_str)
     return _meta.find_undeclared_variables(parsed_content)
 
+class AnsibleArgs(_UserDict):
+    @classmethod
+    def from_ssh(cls, user=None, host=None, port=None):
+        d = {}
+        if host is None:
+            d['ansible_connection'] = 'local'
+            return cls(d)
 
-class _UserDictRepr(_UserDict):
+        if user is None:
+            import getpass
+            user = getpass.getuser()
+        if port is None:
+            port = cfg['default_ssh_port']
+        d['ansible_user'] = user
+        d['ansible_port'] = port
+        # TODO add ansible_ssh_pass stuff here?
+        return cls(d)
 
-    def __repr__(self):
-        reprdict = super().__repr__()
-        cname = self.__class__.__name__
-        main = '{cname}({temp}, {host}, **{reprdict})'
-        main = main.format(
-            cname=cname,
-            temp=repr(self.templ_dirs),
-            host=repr(self.host_list),
-            reprdict=reprdict,
-        )
-        return main
+    @classmethod
+    def from_sudo(cls, user=None):
+        if user is None:
+            return cls()
+        d = {
+            'ansible_become': True,
+            'ansible_become_method': 'sudo',
+            'ansible_become_user': user,
+        }
+        return cls(d)
 
 
-class PBMaker(_UserDictRepr):
+class PBMaker(_UserDict):
 
-    def __init__(self, *templ_dirs, host_list=cfg['default_hosts'], **kwargs):
+    def __init__(self, *templ_dirs, **kwargs):
         super().__init__(kwargs)
         self.templ_dirs = templ_dirs
-        self.host_list = list(host_list)
         self._templates = {}
 
     @property
@@ -131,9 +144,21 @@ class PBMaker(_UserDictRepr):
         but their value won't be stored.
         """
         cm = _ChainMap(kwargs, self.data)
-        cm = {k: _util.maybe_bool(v) for k, v in cm.items()}
+        newd = {k:v for k,v in cm.items()}
         templ = self.get_template(name)
-        return templ.render(**cm)
+        return templ.render(**newd)
+
+    def __repr__(self):
+        reprdict = super().__repr__()
+        cname = self.__class__.__name__
+        main = '{cname}({temp}, **{reprdict})'
+        main = main.format(
+            cname=cname,
+            temp=repr(self.templ_dirs),
+            reprdict=reprdict,
+        )
+        return main
+
 
 
 class AnsiblePlaybook:
