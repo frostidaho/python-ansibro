@@ -61,6 +61,7 @@ setup(
     install_requires=[
         'jinja2',
         'ansible',
+        'docopt',
     ],
     extras_require={
         # eg:
