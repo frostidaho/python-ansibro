@@ -1,21 +1,12 @@
-"""Isna
+"""isna.cli -- The main cli script for isna.
 
-Usage:
-  isna ls temp [--dir=<dir>]... [-v]
-  isna ls vars [--dir=<dir>]... [-v] TEMPLATE...
-  isna ls hosts [--domain=<domain>] [-v]
-  isna [--dir=<dir>]... [-v] [--vars=<xtra>] [--ssh=<user@host:port>] [--sudo=<user>] TEMPLATE...
-  isna (-h | --help | --version)
+cli.main() is called by cli2.main()
 
-Options:
-  --dir=<dir>             Additional template directory.
-  --ssh=<user@host:port>  Connect as user to host using ssh
-  --sudo=<user>           Sudo to this user after connection
-  --domain=<domain>       Avahi-domain [default: .local]
-  --vars=<vars>           Extra variables for TEMPLATE and ansible
-  -h --help               Show this screen.
-  --version               Show version.
-  -v                      Verbose
+cli2.py is just a small script which loads cli.py
+cli2.py just parses the sys.argv using docopt and sends them to cli.main()
+
+They are split like this so that printing out the program's
+usage & help statements occur quickly.
 """
 import os
 import docopt
@@ -27,21 +18,24 @@ from isna.query import InputQuery
 import isna.playbook as pb
 import sys
 
-class Druck:
-    def __init__(self, verbose=False, outfile=sys.stderr, **kwargs):
-        self.verbose = verbose
-        self.outfile = outfile
 
+DEBUG = False
+
+
+def dprint(*pargs, **kwargs):
+    "print function - if the global DEBUG variable is set"
+    if DEBUG:
+        print('ISNA:\t', *(x.replace('\n', '\n\t') for x in map(str, pargs)),
+              flush=True, file=sys.stderr, **kwargs)
+
+def dpprint(*pargs, **kwargs):
+    "pretty print function - if the global DEBUG variable is set"
+    if DEBUG:
         from pprint import pformat
-        self._pformat = pformat
+        allargs = '\n'.join(x for x in map(pformat, pargs))
+        print('ISNA:\t', allargs.replace('\n', '\n\t'), flush=True,
+              file=sys.stderr, **kwargs)
 
-    def pretty(self, obj):
-        if self.verbose:
-            print(self._pformat(obj), file=self.outfile, flush=True)
-
-    def __call__(self, *pargs, **kwargs):
-        if self.verbose:
-            print(*pargs, file=self.outfile, flush=True, **kwargs)
 
 def uniq(iterable):
     "Yield uniqe elements"
@@ -51,18 +45,37 @@ def uniq(iterable):
             seen.add(item)
             yield item
 
+
 def get_templ_dirs(templ_dirs, default=cfg['templ_dirs']):
+    """Return template directories, including any default directories.
+
+    Duplicates will be removed.
+    Each directory is either a string path '/some/template/dir'
+    or a tuple like ('python.module', 'templatefolder')
+    """
     total = []
     if templ_dirs is not None:
         total.extend(templ_dirs)
     total.extend(default)
     return list(uniq(total))
 
+
 class Validate:
+    """Validate arguments/options given by docopt
+
+    TODO: Replace Transform class by moving all of its transformations
+    here.
+    """
     err_msg = 'Validation failed for {key!r} with data {data!r}'
+
     def __init__(self, d_args):
+        """Validate arguments/options given by docopt
+
+        d_args is the dictionary of options & arguments made by docopt
+        It also does some transformation of the data.
+        """
         self.data = d_args
-        for k,v in self.schema.items():
+        for k, v in self.schema.items():
             try:
                 self.data[k] = v.validate(self.data[k])
             except SchemaError as e:
@@ -80,7 +93,7 @@ class Validate:
                 'TEMPLATE': self._schema_template(),
                 '--vars': self._schema_vars(),
             }
-            self._schema = {k:Schema(v) for k,v in d.items()}
+            self._schema = {k: Schema(v) for k, v in d.items()}
             return self._schema
 
     def _schema_ssh(self):
@@ -105,6 +118,7 @@ class Validate:
     def _schema_template(self):
         td = get_templ_dirs(self.data['--dir'])
         env = pb.get_env(*td)
+
         def is_template(name):
             if name in env.list_templates(cfg['templ_ext']):
                 return True
@@ -114,14 +128,16 @@ class Validate:
 
 _tr_ssh = namedtuple('_tr_ssh', 'user host port')
 _tr_templs = namedtuple('_tr_templs', 'name dir')
+
+
 class Transform:
+    "Rename option & arg keys, and transform their values"
     names = {
         '--ssh': 'ssh',
         '--sudo': 'sudo',
         '--domain': 'domain',
         '--dir': 'templ_dirs',
         'TEMPLATE': 'templs',
-        '-v': 'verbose',
         '--vars': 'exvars',
         'vars': 'ls_vars',
         'hosts': 'ls_hosts',
@@ -132,13 +148,13 @@ class Transform:
         d_args.pop('ls', None)
         dat = {}
         self.data = dat
-        for k,v in d_args.items():
+        for k, v in d_args.items():
             if k in self.names:
                 dat[self.names[k]] = v
             else:
                 dat[k] = v
         self.raw_dat = self.data.copy()
-        for k,v in dat.items():
+        for k, v in dat.items():
             try:
                 dat[k] = getattr(self, k)
             except AttributeError:
@@ -163,7 +179,6 @@ class Transform:
             x['port'] = int(port)
         return _tr_ssh(**x)
 
-
     @property
     def templs(self):
         return self._tr_templs(self.raw_dat['templs'])
@@ -179,10 +194,8 @@ class Transform:
                 total.append(_tr_templs(template, None))
         return total
 
-
     @property
     def templ_dirs(self):
-        # FIXME add from template path if template is file
         dirs = [x.dir for x in self.templs if x.dir]
         dirs.extend(self.raw_dat['templ_dirs'])
         return self._tr_templ_dirs(dirs)
@@ -192,16 +205,16 @@ class Transform:
         return get_templ_dirs(templ_dirs, default=default)
 
 
-def main(argv=None):
-    args = docopt.docopt(__doc__, version='Isna v0.1', argv=argv)
-    # dk = Druck(verbose=args['-v'])
-    # dk.pretty(args)
-    args.pop('--help', None), args.pop('--version', None)
-    val = Validate(args)
+def main(debug=False, **kwargs):
+    if debug:
+        global DEBUG
+        DEBUG = True
+    dprint('docopt produced the args:\n', kwargs)
+    val = Validate(kwargs)
     tr = Transform(val.data)
     dat = tr.data
-    # dk.pretty(dat)
-    ls = [k for k,v in dat.items() if k.startswith('ls_') and v]
+    dpprint('validated & transformed args are:', dat)
+    ls = [k for k, v in dat.items() if k.startswith('ls_') and v]
     for func in ls:
         print(*globals()[func](**dat), sep='\n', flush=True)
         return 0
@@ -210,31 +223,14 @@ def main(argv=None):
 
 
 class Runner:
+
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self.dirs = kwargs['templ_dirs']
         exvars = kwargs['exvars']
         exvars = exvars if exvars else {}
         self.exvars = exvars
-
         self.inpq = InputQuery()
-        dk = self.dk
-        dk('Running playbooks', *self.templates)
-        dk('Variables found in templates:\n\t', end='')
-        dk.pretty(self.all_templ_vars)
-        tvs = self.template_vars
-        # dk.pretty(tvs)
-        dk('Ansible --extra-vars')
-        avs = self.get_ansible_vars()
-        dk.pretty(avs)
-
-    @property
-    def dk(self):
-        try:
-            return self._dk
-        except AttributeError:
-            self._dk = Druck(verbose=self.kwargs['verbose'])
-            return self._dk
 
     @property
     def templates(self):
@@ -246,31 +242,31 @@ class Runner:
         pbm.update(self.template_vars)
         avars = self.get_ansible_vars()
         for name in self.templates:
-            self.dk('Running playbook', name)
+            dprint('Running playbook', name)
             txt = pbm.render(name)
+            dprint(txt)
             with pb.AnsiblePlaybook(txt, self.host_list, **avars) as apb:
                 out = apb.run()
-            if out.returncode != 0:
                 return out.returncode
-        return out.returncode
-
 
     def get_ansible_vars(self):
         sudo = self.kwargs['sudo']
         ssh = self.kwargs['ssh']
 
         ansivars = ChainMap(self.inpq.data, self.exvars)
-        ansivars = {k:v for k,v in ansivars.items() if k not in self.template_vars}
+        ansivars = {k: v for k, v in ansivars.items() if k not in self.template_vars}
         ansivars.update(pb.AnsibleArgs.from_ssh(**ssh._asdict()))
         ansivars.update(pb.AnsibleArgs.from_sudo(sudo))
-        
+
         if ssh.host is not None:
+            dprint('Testing ssh connection without password')
             res = util.NeedsPass.ssh(
                 user=ansivars['ansible_user'],
                 hostname=ssh.host,
                 port=ansivars['ansible_port'],
                 sudo=sudo,
             )
+            dprint('SSH test results:\n', res)
             if res.ssh_needs_pw and ('ansible_ssh_pass' not in ansivars):
                 passtupl = self.inpq('ansible_ssh_pass', hide=True)
                 ansivars[passtupl.var] = passtupl.result
@@ -278,12 +274,14 @@ class Runner:
                 passtupl = self.inpq('ansible_become_pass', hide=True)
                 ansivars[passtupl.var] = passtupl.result
         elif sudo and ('ansible_become_pass' not in ansivars):
+            dprint('Testing sudo without password')
             res = util.NeedsPass.sudo(user=sudo)
+            dprint('Sudo test results:\n', res)
             if res.sudo_needs_pw:
                 passtupl = self.inpq('ansible_become_pass', hide=True)
                 ansivars[passtupl.var] = passtupl.result
+        dprint('Ansible --extra-vars:\n{!r}'.format(ansivars))
         return ansivars
-
 
     @property
     def template_vars(self):
@@ -293,16 +291,20 @@ class Runner:
             remaining = set(self.all_templ_vars) - set(self.exvars)
             remaining = remaining - set(self.inpq.data)
             for var in remaining:
-                self.inpq(var)
+                if any(x in var for x in cfg['pass_substrs']):
+                    self.inpq(var, hide=True, repeat=True)
+                else:
+                    self.inpq(var)
             tvs = ChainMap(self.inpq.data, self.exvars)
-            tvs = {k:util.maybe_bool(tvs[k]) for k in self.all_templ_vars}
+            tvs = {k: util.maybe_bool(tvs[k]) for k in self.all_templ_vars}
             self._template_vars = tvs
+            dprint('Undefined template vars:\n', self._template_vars)
             return self._template_vars
 
     @property
     def host_list(self):
         ssh = self.kwargs['ssh']
-        return [ssh.host] if ssh.host else cfg['default_hosts']
+        return [ssh.host] if ssh.host else [cfg['default_host']]
 
     @property
     def all_templ_vars(self):
@@ -310,16 +312,26 @@ class Runner:
             return self._all_templ_vars
         except AttributeError:
             self._all_templ_vars = ls_vars(**self.kwargs)
+            dprint('All template vars:\n', self._all_templ_vars)
             return self._all_templ_vars
-        
+
+
 def ls_hosts(**kwargs):
     hosts = ['localhost']
+    msg = 'Searching on the avahi domain {!r} for other hosts'
+    dprint(msg.format(kwargs['domain']))
     hosts.extend(util.get_hosts(domain=kwargs['domain']))
     return [x for x in hosts if x]
 
+
 def ls_temp(**kwargs):
-    pbm = pb.PBMaker(*kwargs['templ_dirs'])
-    return pbm.list_templates(cfg['templ_ext'])
+    templ_ext = cfg['templ_ext']
+    templ_dirs = kwargs['templ_dirs']
+    msg = 'Listing playbook templates ending w/ {!r} in {!r}'
+    dprint(msg.format(templ_ext, templ_dirs))
+    pbm = pb.PBMaker(*templ_dirs)
+    return pbm.list_templates(templ_ext)
+
 
 def ls_vars(**kwargs):
     pbm = pb.PBMaker(*kwargs['templ_dirs'])
@@ -328,4 +340,3 @@ def ls_vars(**kwargs):
     for x in tnames:
         all_vars.extend(pbm.all_vars(x.name))
     return sorted(uniq(all_vars))
-

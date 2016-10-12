@@ -2,6 +2,7 @@ import unittest
 import os
 from schema import SchemaError
 import isna.cli as cli
+import isna.cli2 as cli2
 from isna.config import cfg
 from docopt import docopt
 
@@ -10,7 +11,7 @@ class TestValidate(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         def getargs(argv):
-            return docopt(cli.__doc__, argv=argv)
+            return docopt(cli2.__doc__, argv=argv)
         cls.getargs = staticmethod(getargs)
 
         @classmethod

@@ -1,12 +1,16 @@
 #!/bin/bash
-echo @Listing available templates
-isna -lt
+ex_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+templ_dir="$ex_dir/templates"
 
-echo @Listing variables in template user-delete.yml
-isna -lv user-delete.yml
+echo '@Listing available templates'
+# You can add additional directories to the template search path
+# with --dir=/template/directory
+isna ls temp --dir="$templ_dir" 
 
-echo @Deleting user woofdawg
-isna user-delete.yml -u sudo,root,no -e username woofdawg
-# -u with no args is the same as -u sudo,root,no
-# i.e., sudo to root & do not ask for the sudo password
+echo '@Listing variables in template user-delete.yml'
+isna ls vars user-delete.yml
+
+echo '@Deleting user woofdawg'
+# stdin and --vars can also be json objects
+echo '{"username": "woofdawg"}' | isna --sudo=root user-delete.yml
 

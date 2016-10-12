@@ -1,0 +1,18 @@
+* TODO Simplify / fix NeedsPass 
+Try to make it somewhat testable
+- [[file:src/isna/util.py::class%20NeedsPass:][NeedsPass]]
+
+* TODO Change AnsibleArgs.from_ssh
+It might be better to just not specify 'ansible_user'
+if no user is explicitly given, as then it should fall back
+to whoever is setup in ~/.ssh/config, or if none is given 
+the user itself.
+- [[file:src/isna/playbook.py::if%20user%20is%20None:][from_ssh]]
+
+* TODO Add support for relative file paths inside playbook templates
+Since the playbook is written to a temporary file any relative 
+imports won't work.
+- Look into 'ansible_search_path'
+- ansible_search_path :: a list of paths to search in finding vars, and maybe also other templates?
+  - In any event, it doesn't appear to be fully implemented yet as of Ansible v2.2
+

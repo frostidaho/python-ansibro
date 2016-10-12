@@ -23,6 +23,7 @@ def maybe_bool(txt, true_strs=cfg['true_strs'],
     else:
         return txt
 
+
 @_lru_cache()
 def get_hosts(domain='.local'):
     "Return a list of hostnames on domain"
@@ -42,7 +43,9 @@ need_pass = _namedtuple(
      'sudo_user', 'sudo_needs_pw', 'sudo_retcode', 'sudo_success'],
 )
 
+
 class NeedsPass:
+
     @classmethod
     def ssh(cls, user='root', hostname='localhost', sudo='', port=22, strict=None):
         res = cls._ssh(user=user, hostname=hostname, sudo=sudo, port=port, strict=strict)
@@ -59,9 +62,7 @@ class NeedsPass:
                 d['sudo_needs_pw'] = False
                 d['sudo_retcode'] = code
                 d['sudo_success'] = True
-            print('Good retcode')
         elif code == 255:       # ssh always fails with 255
-            # print(res.stderr.decode())
             cls._test_conn_err(res.stderr)
             d['ssh_needs_pw'] = True
             d['ssh_success'] = False
@@ -74,7 +75,6 @@ class NeedsPass:
                 d['sudo_needs_pw'] = True
                 d['sudo_retcode'] = code
                 d['sudo_success'] = False
-                print('sudo bad retcode')
         return need_pass(**d)
 
     @staticmethod
@@ -91,7 +91,7 @@ class NeedsPass:
         stderr = stderr.decode()
         if any(x for x in errors if x in stderr):
             raise ConnectionError(stderr)
-        
+
     @staticmethod
     def _ssh(user='root', hostname='localhost', sudo='', port=22, strict=None):
         usrhost = '{}@{}'.format(user, hostname)
@@ -126,8 +126,9 @@ class NeedsPass:
         d['sudo_user'] = user
         d['sudo_retcode'] = code
         d['sudo_needs_pw'] = False if code == 0 else True
+        d['sudo_success'] = True if code == 0 else False
         return need_pass(**d)
-        
+
     @staticmethod
     def _sudo(user='root'):
         cmd = 'sudo -u {} -n whoami'.format(user)
@@ -148,6 +149,7 @@ def _json_parse_str(varstr):
     except json.JSONDecodeError:
         return None
 
+
 def _simple_parse_str(varstr, kv_sep='=', sep=';'):
     "Turn a string like 'a=1; b=2; c=three' into a dict"
     def parse():
@@ -156,6 +158,7 @@ def _simple_parse_str(varstr, kv_sep='=', sep=';'):
             k, v = k.strip(), v.strip()
             yield k, v
     return dict(parse())
+
 
 def dict_from_str(some_string, kv_sep='=', sep=';'):
     """Create a dictionary from a string
@@ -168,4 +171,3 @@ def dict_from_str(some_string, kv_sep='=', sep=';'):
     if dvars is None:
         dvars = _simple_parse_str(some_string, kv_sep=kv_sep, sep=sep)
     return dict(dvars)
-

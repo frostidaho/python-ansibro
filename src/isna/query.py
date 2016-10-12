@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import sys as _sys
-import json
 from functools import partial as _partial
 from collections import namedtuple as _namedtuple
 
@@ -21,7 +20,10 @@ class InputQuery:
 
     If stdin is a tty, it queries the user using input() and getpass().
     However, if stdin is piped then the data is assumed to be formatted
-    as a json object (dict-like)
+    as a json object (dict-like), or as a string of key,value pairs
+
+    See the docs for isna.util.dict_from_str(...) for a more exact
+    description.
     """
     prompt_begin = 'Enter '
     prompt = '{}'
@@ -45,21 +47,10 @@ class InputQuery:
         if self.is_tty:
             self._query = self._user_query
         else:
-            self._json_init()
-            self._query = self._json_query
-
-    def _json_init(self):
-        try:
-            jdat = self._json_dat
-        except AttributeError:
-            
-            try:
-                jdat = json.load(self.input_file)
-            except json.decoder.JSONDecodeError as e:
-                raise self.InputError('Could not decode json from stdin', var) from e
-            self._json_dat = jdat
-            self.data.update(jdat)
-
+            from isna.util import dict_from_str
+            pipe_dat = dict_from_str(self.input_file.read())
+            self.data.update(pipe_dat)
+            self._query = self._pipe_query
 
     def _build_prompt(self, var, default=None, prompt=None, choices=None, **kw):
         """_build_prompt creates a prompt-string for querying the user.
@@ -156,16 +147,18 @@ class InputQuery:
                 return kw['default']
             return self._user_query(var, allow_empty=allow_empty, **kw)
 
-    def _json_query(self, var, **kw):
+    def _pipe_query(self, var, *, default, **kw):
         "Get var from a json object read from stdin"
-        if kw['default'] is not None:
-            val = jdat.get(var, kw['default'])
+        jdat = self.data
+        if default is not None:
+            val = jdat.get(var, default)
         else:
             try:
                 val = jdat[var]
             except KeyError as e:
-                msg = 'The key {} was not given to stdin'.format(var)
-                raise self.InputError(msg, var) from e
+                msg = 'The key {key!r} was not given to {name!r}'
+                msg = msg.format(key=var, name=self.input_file.name)
+                raise self.InputError(msg) from e
         return val
 
 

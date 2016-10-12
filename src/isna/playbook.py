@@ -12,6 +12,11 @@ from isna.config import cfg
 
 
 def _ansible_filters():
+    """Load and return some jinja2 filters that are shipped with ansible.
+
+    This is only called when one of these filters appears in a playbook template.
+    This is the only place ansible code is imported.
+    """
     from ansible.plugins.filter.core import FilterModule
     return FilterModule().filters()
 
@@ -64,7 +69,9 @@ def get_undefined(template):
     parsed_content = env.parse(template_str)
     return _meta.find_undeclared_variables(parsed_content)
 
+
 class AnsibleArgs(_UserDict):
+
     @classmethod
     def from_ssh(cls, user=None, host=None, port=None):
         d = {}
@@ -79,7 +86,6 @@ class AnsibleArgs(_UserDict):
             port = cfg['default_ssh_port']
         d['ansible_user'] = user
         d['ansible_port'] = port
-        # TODO add ansible_ssh_pass stuff here?
         return cls(d)
 
     @classmethod
@@ -107,7 +113,6 @@ class PBMaker(_UserDict):
             return self._environment
         except AttributeError:
             self._environment = get_env(*self.templ_dirs)
-            # self._environment.filters.update(_ansi_filters)
             return self._environment
 
     def get_template(self, name):
@@ -144,7 +149,7 @@ class PBMaker(_UserDict):
         but their value won't be stored.
         """
         cm = _ChainMap(kwargs, self.data)
-        newd = {k:v for k,v in cm.items()}
+        newd = {k: v for k, v in cm.items()}
         templ = self.get_template(name)
         return templ.render(**newd)
 
@@ -160,7 +165,6 @@ class PBMaker(_UserDict):
         return main
 
 
-
 class AnsiblePlaybook:
     """AnsiblePlaybook is context manager for running playbooks
 
@@ -168,6 +172,7 @@ class AnsiblePlaybook:
         with AnsiblePlaybook(...) as pb:
             output = pb.run()
     """
+
     def __init__(self, playbook_str, host_list, **extra_vars):
         import tempfile
         import json
@@ -184,6 +189,17 @@ class AnsiblePlaybook:
         self.extra_vars.update(extra_vars)
 
     def get_tempfile(self, towrite, mode='w+t', suffix=None, prefix='isna'):
+        """Create a named temporary file from the string towrite
+
+
+        It returns a handle to the file object.
+
+        The file is named prefix**suffix, and should have no rwx permissions for group
+        or others.
+        [On my system tempfile.NamedTemporaryFile implicitly sets the permissions
+        for group and others to zero. If this isn't always true we'll
+        have to come up with another solution]
+        """
         ntf = self._tempfile.NamedTemporaryFile
         tf = ntf(mode='w+t', prefix=prefix, suffix=suffix)
         tf.write(towrite)
@@ -210,4 +226,3 @@ class AnsiblePlaybook:
         cmd = cmd + inv + extra
         # return sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE, stdin=sp.DEVNULL)
         return sp.run(cmd, stdin=sp.DEVNULL)
-

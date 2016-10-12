@@ -32,5 +32,35 @@ class TestMaybeBool(unittest.TestCase):
             self.assertEqual(f(txt), txt)
             self.assertEqual(f(txt.upper()), txt.upper())
 
+    def test_none(self):
+        x = util.maybe_bool(None)
+        self.assertIsNone(x)
 
+class TestDictFromStr(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.d0 = {'a':0, 'b':'one', 'c':True}
+        cls.d1 = {'a':'0', 'b':'one', 'c':'True'}
+        cls.s0 = '{"a":0, "b":"one", "c":true}'
+        cls.s1 = "a=0; b=one; c=True"
+        
+    def test_simple_parse_str1(self):
+        x = util._simple_parse_str(self.s1)
+        self.assertEqual(self.d1, x)
+
+    def test_json_parse_str0(self):
+        x = util._json_parse_str(self.s0)
+        self.assertEqual(self.d0, x)
+
+    def test_json_parse_str1(self):
+        x = util._json_parse_str(self.s1)
+        self.assertEqual(None, x)
+
+    def test_dict_from_str0(self):
+        x = util.dict_from_str(self.s0)
+        self.assertEqual(x, self.d0)
+
+    def test_dict_from_str1(self):
+        x = util.dict_from_str(self.s1)
+        self.assertEqual(x, self.d1)
 
