@@ -1,0 +1,19 @@
+---
+- hosts: all
+  # This playbook will clone the git repos into the
+  # sudo user if given, then fallback to ssh user if given,
+  # and finally fallback to the user that ran isna
+
+  tasks:
+    - name: Cloning git repos
+      git: repo="{{ item.repo }}" dest="{{ item.dest }}" accept_hostkey=yes
+      with_items:
+        - { repo: 'https://github.com/ansible/ansible-examples.git', dest: '~/isna_exampls/ansible_examples' }
+        - { repo: 'https://github.com/githubtraining/example-submodule.git', dest: '~/isna_exampls/example-submodule' }
+
+    - name: Cloning git repos from template variable
+      git: repo="{{ item.repo }}" dest="{{ item.dest }}" accept_hostkey=yes
+      # git_repos_to_clone should be a list of dicts
+      # see new-exampl-user-v2.sh
+      with_items: <@ git_repos_to_clone @>
+

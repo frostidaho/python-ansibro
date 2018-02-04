@@ -62,6 +62,7 @@ setup(
         'jinja2',
         'ansible',
         'docopt',
+        'schema',
     ],
     extras_require={},
     entry_points={

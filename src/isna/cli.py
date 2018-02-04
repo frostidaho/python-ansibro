@@ -9,14 +9,9 @@ They are split like this so that printing out the program's
 usage & help statements occur quickly.
 """
 import os
-import docopt
 from schema import Schema, And, Or, Use, SchemaError, Regex
 from collections import namedtuple, ChainMap
 from isna.config import cfg
-from isna import util
-from isna.query import InputQuery
-import isna.playbook as pb
-import sys
 
 
 DEBUG = False
@@ -24,17 +19,21 @@ DEBUG = False
 
 def dprint(*pargs, **kwargs):
     "print function - if the global DEBUG variable is set"
+
     if DEBUG:
+        from sys import stderr
         print('ISNA:\t', *(x.replace('\n', '\n\t') for x in map(str, pargs)),
-              flush=True, file=sys.stderr, **kwargs)
+              flush=True, file=stderr, **kwargs)
+
 
 def dpprint(*pargs, **kwargs):
     "pretty print function - if the global DEBUG variable is set"
     if DEBUG:
+        from sys import stderr
         from pprint import pformat
         allargs = '\n'.join(x for x in map(pformat, pargs))
         print('ISNA:\t', allargs.replace('\n', '\n\t'), flush=True,
-              file=sys.stderr, **kwargs)
+              file=stderr, **kwargs)
 
 
 def uniq(iterable):
@@ -113,11 +112,13 @@ class Validate:
         return [os.path.isdir]
 
     def _schema_vars(self):
-        return Or(None, And(Use(util.dict_from_str), dict))
+        from isna.util import dict_from_str
+        return Or(None, And(Use(dict_from_str), dict))
 
     def _schema_template(self):
         td = get_templ_dirs(self.data['--dir'])
-        env = pb.get_env(*td)
+        from isna.playbook import get_env
+        env = get_env(*td)
 
         def is_template(name):
             if name in env.list_templates(cfg['templ_ext']):
@@ -225,6 +226,7 @@ def main(debug=False, **kwargs):
 class Runner:
 
     def __init__(self, **kwargs):
+        from isna.query import InputQuery
         self.kwargs = kwargs
         self.dirs = kwargs['templ_dirs']
         exvars = kwargs['exvars']
@@ -238,14 +240,15 @@ class Runner:
 
     def run(self):
         tdirs = [x for x in self.kwargs['templ_dirs']]
-        pbm = pb.PBMaker(*tdirs)
+        from isna.playbook import PBMaker, AnsiblePlaybook
+        pbm = PBMaker(*tdirs)
         pbm.update(self.template_vars)
         avars = self.get_ansible_vars()
         for name in self.templates:
             dprint('Running playbook', name)
             txt = pbm.render(name)
             dprint(txt)
-            with pb.AnsiblePlaybook(txt, self.host_list, **avars) as apb:
+            with AnsiblePlaybook(txt, self.host_list, **avars) as apb:
                 out = apb.run()
                 return out.returncode
 
@@ -255,12 +258,13 @@ class Runner:
 
         ansivars = ChainMap(self.inpq.data, self.exvars)
         ansivars = {k: v for k, v in ansivars.items() if k not in self.template_vars}
-        ansivars.update(pb.AnsibleArgs.from_ssh(**ssh._asdict()))
-        ansivars.update(pb.AnsibleArgs.from_sudo(sudo))
-
+        from isna.playbook import AnsibleArgs
+        ansivars.update(AnsibleArgs.from_ssh(**ssh._asdict()))
+        ansivars.update(AnsibleArgs.from_sudo(sudo))
+        from isna.util import NeedsPass
         if ssh.host is not None:
             dprint('Testing ssh connection without password')
-            res = util.NeedsPass.ssh(
+            res = NeedsPass.ssh(
                 user=ansivars['ansible_user'],
                 hostname=ssh.host,
                 port=ansivars['ansible_port'],
@@ -275,7 +279,7 @@ class Runner:
                 ansivars[passtupl.var] = passtupl.result
         elif sudo and ('ansible_become_pass' not in ansivars):
             dprint('Testing sudo without password')
-            res = util.NeedsPass.sudo(user=sudo)
+            res = NeedsPass.sudo(user=sudo)
             dprint('Sudo test results:\n', res)
             if res.sudo_needs_pw:
                 passtupl = self.inpq('ansible_become_pass', hide=True)
@@ -296,7 +300,8 @@ class Runner:
                 else:
                     self.inpq(var)
             tvs = ChainMap(self.inpq.data, self.exvars)
-            tvs = {k: util.maybe_bool(tvs[k]) for k in self.all_templ_vars}
+            from isna.util import maybe_bool
+            tvs = {k: maybe_bool(tvs[k]) for k in self.all_templ_vars}
             self._template_vars = tvs
             dprint('Undefined template vars:\n', self._template_vars)
             return self._template_vars
@@ -320,7 +325,8 @@ def ls_hosts(**kwargs):
     hosts = ['localhost']
     msg = 'Searching on the avahi domain {!r} for other hosts'
     dprint(msg.format(kwargs['domain']))
-    hosts.extend(util.get_hosts(domain=kwargs['domain']))
+    from isna.util import get_hosts
+    hosts.extend(get_hosts(domain=kwargs['domain']))
     return [x for x in hosts if x]
 
 
@@ -329,12 +335,14 @@ def ls_temp(**kwargs):
     templ_dirs = kwargs['templ_dirs']
     msg = 'Listing playbook templates ending w/ {!r} in {!r}'
     dprint(msg.format(templ_ext, templ_dirs))
-    pbm = pb.PBMaker(*templ_dirs)
+    from isna.playbook import PBMaker
+    pbm = PBMaker(*templ_dirs)
     return pbm.list_templates(templ_ext)
 
 
 def ls_vars(**kwargs):
-    pbm = pb.PBMaker(*kwargs['templ_dirs'])
+    from isna.playbook import PBMaker
+    pbm = PBMaker(*kwargs['templ_dirs'])
     tnames = kwargs['templs']
     all_vars = []
     for x in tnames:

@@ -7,10 +7,10 @@ echo '@Listing available templates'
 # with --dir=/template/directory
 isna ls temp --dir="$templ_dir" 
 
-echo '@Listing variables in template user-delete.yml'
-isna ls vars user-delete.yml
+echo '@Listing variables in template delete-user.yml'
+isna ls vars delete-user.yml
 
 echo '@Deleting user woofdawg'
 # stdin and --vars can also be json objects
-echo '{"username": "woofdawg"}' | isna --sudo=root user-delete.yml
+echo '{"username": "woofdawg"}' | isna --sudo=root delete-user.yml
 

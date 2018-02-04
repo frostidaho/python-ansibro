@@ -7,9 +7,11 @@ import jinja2
 
 
 class TestJinjaEnv(unittest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         cls.data_dir = os.path.join(os.path.dirname(__file__), 'data')
+
         def datfile(name):
             return os.path.join(cls.data_dir, name)
         cls.datfile = staticmethod(datfile)
@@ -34,9 +36,11 @@ class TestJinjaEnv(unittest.TestCase):
 
 
 class TestPBMaker(unittest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         cls.data_dir = os.path.join(os.path.dirname(__file__), 'data')
+
         def datfile(name):
             return os.path.join(cls.data_dir, name)
         cls.datfile = staticmethod(datfile)
@@ -53,7 +57,7 @@ class TestPBMaker(unittest.TestCase):
         extension = self.ex_templ_name.rsplit('.', maxsplit=1)[-1]
         templ_names = pbm.list_templates([extension])
         self.assertIn(self.ex_templ_name, templ_names)
-        templ_names = pbm.list_templates([extension+'asdf'])
+        templ_names = pbm.list_templates([extension + 'asdf'])
         self.assertNotIn(self.ex_templ_name, templ_names)
 
     def test_all_vars(self):
@@ -85,9 +89,7 @@ class TestPBMaker(unittest.TestCase):
             self.ex_templ_name
         )
         exv = sorted(self.ex_all_vars)
-        new_d = {k:str(i) for i,k in enumerate(exv)}
-        res = '\n'.join([str(i) for i,x in enumerate(exv)])
+        new_d = {k: str(i) for i, k in enumerate(exv)}
+        res = '\n'.join([str(i) for i, x in enumerate(exv)])
         out = pbm.render(self.ex_templ_name, **new_d)
         self.assertEqual(res, out)
-
-        

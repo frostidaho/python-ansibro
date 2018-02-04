@@ -160,13 +160,3 @@ class InputQuery:
                 msg = msg.format(key=var, name=self.input_file.name)
                 raise self.InputError(msg) from e
         return val
-
-
-if __name__ == '__main__':
-    iq = InputQuery()
-    x = iq('SomeVar', default='yes', choices=['yes', 'no'])
-    print(x)
-    x = iq('AnotherVar', default='YES', choices=['YES', 'NO'], transform=str.upper)
-    print(x)
-    x = iq('password', hide=True, repeat=True)
-    print(x)

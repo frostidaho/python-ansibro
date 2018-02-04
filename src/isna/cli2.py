@@ -19,6 +19,7 @@ Options:
 import sys
 from docopt import docopt
 
+
 def main(argv=None):
     if argv is None:
         argv = sys.argv[1:]
@@ -32,4 +33,3 @@ def main(argv=None):
     args.pop('--help', None), args.pop('--version', None)
     import isna.cli as cli
     return cli.main(debug=debug, **args)
-

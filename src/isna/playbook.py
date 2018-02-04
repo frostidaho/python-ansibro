@@ -1,13 +1,8 @@
-from functools import partial as _partial
 from collections import (
     ChainMap as _ChainMap,
     Iterable as _Iterable,
-    defaultdict as _defaultdict,
     UserDict as _UserDict,
 )
-import jinja2
-from jinja2 import meta as _meta
-from isna import util as _util
 from isna.config import cfg
 
 
@@ -21,18 +16,6 @@ def _ansible_filters():
     return FilterModule().filters()
 
 
-JinjaEnv = _partial(
-    jinja2.Environment,
-    block_start_string='<@@',
-    block_end_string='@@>',
-    variable_start_string='<@',
-    variable_end_string='@>',
-    comment_start_string='<#',
-    comment_end_string='#>',
-    undefined=jinja2.StrictUndefined,
-)
-
-
 def get_loader(*templ_dirs):
     """Get a jinja loader which searches in templ_dirs
 
@@ -41,15 +24,16 @@ def get_loader(*templ_dirs):
         or a list-like object of   (e.g, ['pymodule_name', 'template_folder'])
     """
     loaders = []
+    from jinja2 import FileSystemLoader, PackageLoader, ChoiceLoader
     for td in templ_dirs:
         if isinstance(td, str):
-            ldr = jinja2.FileSystemLoader(td, followlinks=True)
+            ldr = FileSystemLoader(td, followlinks=True)
         elif isinstance(td, _Iterable):  # MUST come after check for str since
-            ldr = jinja2.PackageLoader(*td)
+            ldr = PackageLoader(*td)
         else:
             raise TypeError('type {} is not supported'.format(type(td)))
         loaders.append(ldr)
-    return jinja2.ChoiceLoader(loaders)
+    return ChoiceLoader(loaders)
 
 
 def get_env(*templ_dirs):
@@ -59,15 +43,27 @@ def get_env(*templ_dirs):
         directory path as a string     (e.g., '/path/to/templates')
         or a list-like object of len 2 (e.g, ['pymodule_name', 'template_folder'])
     """
-    return JinjaEnv(loader=get_loader(*templ_dirs))
+    from jinja2 import Environment, StrictUndefined
+    jenv = Environment(
+        loader=get_loader(*templ_dirs),
+        block_start_string='<@@',
+        block_end_string='@@>',
+        variable_start_string='<@',
+        variable_end_string='@>',
+        comment_start_string='<#',
+        comment_end_string='#>',
+        undefined=StrictUndefined,
+    )
+    return jenv
 
 
 def get_undefined(template):
     "Given a jinja2 template object return the template's variables"
+    from jinja2 import meta
     env = template.environment
     template_str = env.loader.get_source(env, template.name)[0]
     parsed_content = env.parse(template_str)
-    return _meta.find_undeclared_variables(parsed_content)
+    return meta.find_undeclared_variables(parsed_content)
 
 
 class AnsibleArgs(_UserDict):
@@ -119,9 +115,10 @@ class PBMaker(_UserDict):
         templ = self._templates.get(name, False)
         if templ:
             return templ
+        from jinja2.exceptions import TemplateAssertionError
         try:
             templ = self.environment.get_template(name)
-        except jinja2.exceptions.TemplateAssertionError:  # Load ansible filters
+        except TemplateAssertionError:  # Load ansible filters
             self.environment.filters.update(_ansible_filters())
             templ = self.environment.get_template(name)
         self._templates[name] = templ
@@ -176,11 +173,9 @@ class AnsiblePlaybook:
     def __init__(self, playbook_str, host_list, **extra_vars):
         import tempfile
         import json
-        import subprocess
 
         self._tempfile = tempfile
         self._json = json
-        self._subprocess = subprocess
 
         self.playbook_str = playbook_str
         self.host_list = host_list
@@ -219,10 +214,9 @@ class AnsiblePlaybook:
         self.temp_extra_vars.close()
 
     def run(self):
-        sp = self._subprocess
+        from subprocess import run, DEVNULL
         cmd = ['ansible-playbook', self.temp_playbook.name]
         inv = ['-i', ','.join(self.host_list) + ',']
         extra = ['-e', '@' + self.temp_extra_vars.name]
         cmd = cmd + inv + extra
-        # return sp.run(cmd, stdout=sp.PIPE, stderr=sp.PIPE, stdin=sp.DEVNULL)
-        return sp.run(cmd, stdin=sp.DEVNULL)
+        return run(cmd, stdin=DEVNULL)

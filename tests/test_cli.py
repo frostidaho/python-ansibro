@@ -8,6 +8,7 @@ from docopt import docopt
 
 
 class TestValidate(unittest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         def getargs(argv):
@@ -22,32 +23,33 @@ class TestValidate(unittest.TestCase):
         cls.validate = validate
 
     def test_template(self):
-        self.validate(['user-create.yml'])
+        self.validate(['create-user.yml'])
         with self.assertRaises(ValueError):
             self.validate(['nope-create-nothin.yml'])
 
     def test_ssh(self):
         val = self.validate
-        val(argv=['--ssh=ida@localhost:22', 'user-create.yml'])
-        val(argv=['--ssh=wow.local:9001', 'user-create.yml'])
-        val(argv=['--ssh=nope@okay', 'user-create.yml'])
+        val(argv=['--ssh=ida@localhost:22', 'create-user.yml'])
+        val(argv=['--ssh=wow.local:9001', 'create-user.yml'])
+        val(argv=['--ssh=nope@okay', 'create-user.yml'])
         with self.assertRaises(ValueError):
-            val(['--ssh=wow.local:1234134149001', 'user-create.yml'])
+            val(['--ssh=wow.local:1234134149001', 'create-user.yml'])
         with self.assertRaises(ValueError):
-            val(['--ssh=wow.local::22', 'user-create.yml'])
+            val(['--ssh=wow.local::22', 'create-user.yml'])
 
     def test_templ_dirs(self):
         val = self.validate
-        val(['--dir=/tmp', 'user-create.yml'])
+        val(['--dir=/tmp', 'create-user.yml'])
         with self.assertRaises(ValueError):
-            val(['--dir=/tmpasdfjlasdf', 'user-create.yml'])
-
+            val(['--dir=/tmpasdfjlasdf', 'create-user.yml'])
 
 
 class TestTransformStatic(unittest.TestCase):
+
     @classmethod
     def setUpClass(cls):
         cls.data_dir = os.path.join(os.path.dirname(__file__), 'data')
+
         def datfile(name):
             return os.path.join(cls.data_dir, name)
         cls.datfile = staticmethod(datfile)
@@ -69,7 +71,7 @@ class TestTransformStatic(unittest.TestCase):
             self.assertIsNone(ssh.port)
         else:
             self.assertEqual(ssh.port, port)
-        
+
     def test_ssh_none(self):
         self.assertTrSSH(None, None, None, None)
 
@@ -123,4 +125,3 @@ class TestTransformStatic(unittest.TestCase):
         templates = templs([self.datfile(name)])
         x = templates[0]
         self.assertTempl(x, name, self.data_dir)
-        

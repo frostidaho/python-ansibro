@@ -1,5 +1,3 @@
-import subprocess as sp
-from functools import lru_cache as _lru_cache
 from collections import namedtuple as _namedtuple
 
 from isna.config import cfg
@@ -24,10 +22,10 @@ def maybe_bool(txt, true_strs=cfg['true_strs'],
         return txt
 
 
-@_lru_cache()
 def get_hosts(domain='.local'):
     "Return a list of hostnames on domain"
     hosts = set()
+    import subprocess as sp
     p = sp.Popen(['avahi-browse', '-alrpt'], stdout=sp.PIPE)
     stdout, stderr = p.communicate()
     stdout = stdout.decode()
@@ -108,6 +106,7 @@ class NeedsPass:
 
         if sudo:
             cmd.append('sudo -u {} -n whoami'.format(sudo))
+        import subprocess as sp
         output = sp.run(
             cmd,
             stdin=sp.DEVNULL,
@@ -117,7 +116,6 @@ class NeedsPass:
         return output
 
     @classmethod
-    @_lru_cache()
     def sudo(cls, user='root'):
         res = cls._sudo(user=user)
         code = res.returncode
@@ -132,6 +130,7 @@ class NeedsPass:
     @staticmethod
     def _sudo(user='root'):
         cmd = 'sudo -u {} -n whoami'.format(user)
+        import subprocess as sp
         output = sp.run(
             cmd,
             shell=True,
@@ -151,11 +150,23 @@ def _json_parse_str(varstr):
 
 
 def _simple_parse_str(varstr, kv_sep='=', sep=';'):
-    "Turn a string like 'a=1; b=2; c=three' into a dict"
+    """Turn a string like 'a=1; b=2; c=three' into a dict
+
+    For each key=value pair the key should be a valid python identifier,
+    and the value can either be a json object or any string*
+
+    *None of the values can contain any semicolon.
+    """
+    pat = r'(?P<key>[^\d\W]\w*)(?:\s*?' + kv_sep + r'\s*?)(?P<val>\S.*?)(?:' + sep + r'|$)'
+    import re
     def parse():
-        for kv in (x for x in varstr.split(sep) if x):
-            k, v = kv.split(kv_sep)
-            k, v = k.strip(), v.strip()
+        for kv in re.findall(pat, varstr, re.UNICODE | re.DOTALL):
+            k, v = kv
+            v_json = _json_parse_str(v)
+            if v_json is not None:
+                v = v_json
+            else:
+                v = v.strip()
             yield k, v
     return dict(parse())
 
@@ -167,6 +178,7 @@ def dict_from_str(some_string, kv_sep='=', sep=';'):
        a json object (dict-like), or
        a string of key,value pairs like 'a=1; b=2; c=three'
     """
+    some_string = some_string.replace('\n', ' ')
     dvars = _json_parse_str(some_string)
     if dvars is None:
         dvars = _simple_parse_str(some_string, kv_sep=kv_sep, sep=sep)
