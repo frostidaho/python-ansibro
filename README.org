@@ -1,0 +1,9 @@
+* Isna a wrapper for ansible
+
+~Isna~ is a wrapper for ansible, which simplifies its use when working with one or a few machines. When it was created there was no support
+in Ansible for python3 and some machines where running Ansible v1.x while others were on v2.x. As a consequence it was written by wrapping
+the ansible executable instead of using Ansible's python libraries.
+
+It still works (as of Ansible 2.5.0), but it is not being actively developed. If I work more on this project, it'll probably be rewritten
+to use the ansible python libraries.
+
